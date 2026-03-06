@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "service-rag"
+version = "1.0.0"
+description = "RAG query microservice"
+authors = ["kurodayu23"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+rag-shared = {path = "../shared", develop = true}
+ollama = "^0.1.8"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-mock = "^3.14.0"
+pytest-cov = "^5.0.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["..", "."]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

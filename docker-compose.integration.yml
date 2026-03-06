@@ -1,0 +1,33 @@
+version: "3.9"
+
+# ── Integration test environment ──────────────────────────────────────────────
+# Used by IntegrationTest build config.
+# docker-compose down --volumes --remove-orphans (ALWAYS step) destroys everything.
+
+networks:
+  rag-net:
+    driver: bridge
+
+services:
+  service-api:
+    build:
+      context: ./service-api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    networks: [ rag-net ]
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  service-rag:
+    build:
+      context: ./service-rag
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    networks: [ rag-net ]
+    environment:
+      - OLLAMA_MODEL=llama3
