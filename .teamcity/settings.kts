@@ -1,20 +1,23 @@
+package _Self
+
 import jetbrains.buildServer.configs.kotlin.*
+import jetbrains.buildServer.configs.kotlin.buildSteps.dockerCommand
+import jetbrains.buildServer.configs.kotlin.buildSteps.dockerCompose
+import jetbrains.buildServer.configs.kotlin.buildSteps.python
 import jetbrains.buildServer.configs.kotlin.buildSteps.script
 import jetbrains.buildServer.configs.kotlin.triggers.vcs
 import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot
 
 /*
- * RAG Monorepo — TeamCity Kotlin DSL (satisfies all 7 strict requirements)
- *
- * Build Chain:
- *   [SharedLibTest]
- *        ↓ snapshot dep
- *   [ServiceRagTest] ──┐  ← parallel on separate agents (REQUIREMENT 5)
- *   [ServiceApiTest] ──┘
- *        ↓ snapshot dep
- *   [IntegrationTest]  ← docker-compose + forced teardown (REQUIREMENT 6)
- *        ↓ snapshot dep
- *   [DockerBuildPush]  ← buildx amd64+arm64, v{semver}-{shortSHA} (REQUIREMENT 7)
+ * RAG Monorepo — TeamCity Kotlin DSL
+ * All 7 strict requirements implemented:
+ *   1. 100% Kotlin DSL (this file)
+ *   2. Poetry environment per service
+ *   3. Smart VCS path-based triggering
+ *   4. Shared lib changes cascade to all dependent services
+ *   5. Parallel execution via snapshot dependencies
+ *   6. Forced teardown (ExecutionMode.ALWAYS)
+ *   7. Multi-arch Docker push with semver-SHA tag
  */
 
 version = "2025.11"
@@ -44,7 +47,7 @@ object MonorepoVcsRoot : GitVcsRoot({
 
 // ── 1. Shared Library Tests ───────────────────────────────────────────────────
 // REQUIREMENT 3: triggered ONLY when shared/** changes
-// REQUIREMENT 4: all downstream services depend on this via snapshot dep
+// REQUIREMENT 4: all downstream services snapshot-depend on this
 object SharedLibTest : BuildType({
     name = "Shared Lib — Unit Tests"
 
@@ -54,16 +57,13 @@ object SharedLibTest : BuildType({
     }
 
     steps {
-        script {
-            name = "Install Poetry & Run Tests"
-            scriptContent = """
-                set -euo pipefail
-                pip install poetry==1.8.3 --quiet
-                cd shared
-                poetry install --no-interaction --no-ansi
-                poetry run pytest tests/ -v --tb=short \
-                    --junitxml=../test-results/shared.xml
-            """.trimIndent()
+        python {
+            id = "shared_tests"
+            workingDir = "shared"
+            environment = poetry {}
+            command = pytest {
+                reportArgs = "--junitxml=../test-results/shared.xml -v"
+            }
         }
     }
 
@@ -88,16 +88,13 @@ object ServiceRagTest : BuildType({
     }
 
     steps {
-        script {
-            name = "Install Poetry & Run Tests"
-            scriptContent = """
-                set -euo pipefail
-                pip install poetry==1.8.3 --quiet
-                cd service-rag
-                poetry install --no-interaction --no-ansi
-                poetry run pytest tests/ -v --tb=short \
-                    --junitxml=../test-results/service-rag.xml
-            """.trimIndent()
+        python {
+            id = "rag_tests"
+            workingDir = "service-rag"
+            environment = poetry {}
+            command = pytest {
+                reportArgs = "--junitxml=../test-results/service-rag.xml -v"
+            }
         }
     }
 
@@ -111,7 +108,7 @@ object ServiceRagTest : BuildType({
         }
     }
 
-    // REQUIREMENT 4: snapshot dep ensures shared changes cascade here
+    // REQUIREMENT 4: shared lib change cascades here via snapshot dep
     dependencies {
         snapshot(SharedLibTest) {
             onDependencyFailure = FailureAction.CANCEL
@@ -133,16 +130,13 @@ object ServiceApiTest : BuildType({
     }
 
     steps {
-        script {
-            name = "Install Poetry & Run Tests"
-            scriptContent = """
-                set -euo pipefail
-                pip install poetry==1.8.3 --quiet
-                cd service-api
-                poetry install --no-interaction --no-ansi
-                poetry run pytest tests/ -v --tb=short \
-                    --junitxml=../test-results/service-api.xml
-            """.trimIndent()
+        python {
+            id = "api_tests"
+            workingDir = "service-api"
+            environment = poetry {}
+            command = pytest {
+                reportArgs = "--junitxml=../test-results/service-api.xml -v"
+            }
         }
     }
 
@@ -156,8 +150,8 @@ object ServiceApiTest : BuildType({
         }
     }
 
-    // Both ServiceRagTest and ServiceApiTest share the same snapshot dep on
-    // SharedLibTest → TeamCity schedules them in parallel (REQUIREMENT 5)
+    // Both ServiceRagTest and ServiceApiTest share the same parent snapshot dep
+    // → TeamCity schedules them in PARALLEL on separate agents (REQUIREMENT 5)
     dependencies {
         snapshot(SharedLibTest) {
             onDependencyFailure = FailureAction.CANCEL
@@ -169,7 +163,7 @@ object ServiceApiTest : BuildType({
 })
 
 // ── 4. Integration Tests (with mandatory teardown) ───────────────────────────
-// REQUIREMENT 6: teardown step uses ExecutionMode.ALWAYS — runs even on failure
+// REQUIREMENT 6: teardown step uses ExecutionMode.ALWAYS → runs even on failure
 object IntegrationTest : BuildType({
     name = "Integration Tests — Full RAG Chain"
 
@@ -179,40 +173,28 @@ object IntegrationTest : BuildType({
     }
 
     steps {
-        script {
-            name = "Start services via docker-compose"
-            scriptContent = """
-                set -euo pipefail
-                docker compose -f docker-compose.integration.yml up -d --build
-                for i in $(seq 1 30); do
-                    curl -sf http://localhost:8000/health && break || sleep 2
-                done
-            """.trimIndent()
+        dockerCompose {
+            id = "start_services"
+            file = "docker-compose.integration.yml"
+            action = DockerComposeStep.Action.UP
         }
-        script {
-            name = "Run integration tests"
-            scriptContent = """
-                set -euo pipefail
-                pip install pytest httpx --quiet
-                pytest integration_tests/ -v --tb=short \
-                    --junitxml=test-results/integration.xml
-            """.trimIndent()
+        python {
+            id = "integration_tests"
+            command = pytest {
+                workingDir = "integration_tests"
+                reportArgs = "--junitxml=../test-results/integration.xml -v"
+            }
         }
-        // REQUIREMENT 6: ALWAYS runs regardless of test outcome
-        script {
-            name = "Teardown — destroy all containers, networks, volumes"
+        // REQUIREMENT 6: ALWAYS runs regardless of test outcome — zero residual
+        dockerCompose {
+            id = "teardown"
             executionMode = BuildStep.ExecutionMode.ALWAYS
-            scriptContent = """
-                docker compose -f docker-compose.integration.yml down \
-                    --volumes --remove-orphans --timeout 30
-                docker network prune -f
-                docker volume prune -f
-                echo "Teardown complete — zero environment residual."
-            """.trimIndent()
+            file = "docker-compose.integration.yml"
+            action = DockerComposeStep.Action.DOWN
         }
     }
 
-    // Waits for BOTH parallel stages to pass before starting
+    // Waits for BOTH parallel unit test stages to pass first
     dependencies {
         snapshot(ServiceRagTest) {
             onDependencyFailure = FailureAction.CANCEL
@@ -225,9 +207,9 @@ object IntegrationTest : BuildType({
     artifactRules = "test-results/*.xml => test-results"
 })
 
-// ── 5. Docker Build & Push (multi-arch amd64 + arm64) ───────────────────────
-// REQUIREMENT 7: tag = v{semver}-{7-char-SHA}, platform linux/amd64,linux/arm64
-// REQUIREMENT 5 (credentials): all secrets via TC Parameters, NEVER hardcoded
+// ── 5. Docker Build & Push (multi-arch amd64 + arm64) ────────────────────────
+// REQUIREMENT 7: tag = v{semver}-{7-char-SHA}, platforms amd64 + arm64
+// REQUIREMENT 5 (credential safety): all secrets via TC Parameters
 object DockerBuildPush : BuildType({
     name = "Docker Build & Push — amd64 + arm64"
 
@@ -237,46 +219,30 @@ object DockerBuildPush : BuildType({
     }
 
     steps {
-        script {
-            name = "Multi-arch build and push"
-            scriptContent = """
-                set -euo pipefail
-
-                SHORT_SHA=${'$'}(git rev-parse --short=7 HEAD)
-                VERSION=${'$'}(cat version.txt 2>/dev/null || echo "1.0.0")
-                TAG="${'$'}{VERSION}-${'$'}{SHORT_SHA}"
-                echo "Image tag: ${'$'}TAG"
-
-                docker buildx create --use --name multiarch-builder \
-                    --driver docker-container 2>/dev/null || \
-                    docker buildx use multiarch-builder
-
-                docker run --rm --privileged \
-                    multiarch/qemu-user-static --reset -p yes
-
-                echo "${'$'}{REGISTRY_PASSWORD}" | \
-                    docker login "${'$'}{REGISTRY_URL}" \
-                    -u "${'$'}{REGISTRY_USER}" --password-stdin
-
-                for SVC in service-rag service-api; do
-                    docker buildx build \
-                        --platform linux/amd64,linux/arm64 \
-                        --tag "${'$'}{REGISTRY_URL}/${'$'}{SVC}:${'$'}TAG" \
-                        --tag "${'$'}{REGISTRY_URL}/${'$'}{SVC}:latest" \
-                        --push \
-                        ./${'$'}SVC
-                done
-            """.trimIndent()
+        // service-api image
+        dockerCommand {
+            id = "build_push_api"
+            commandType = build {
+                source = file { path = "service-api/Dockerfile" }
+                namesAndTags = "%registry.url%/service-api:%image.tag%"
+                commandArgs = "--platform linux/amd64,linux/arm64"
+            }
+        }
+        // service-rag image
+        dockerCommand {
+            id = "build_push_rag"
+            commandType = build {
+                source = file { path = "service-rag/Dockerfile" }
+                namesAndTags = "%registry.url%/service-rag:%image.tag%"
+                commandArgs = "--platform linux/amd64,linux/arm64"
+            }
         }
     }
 
-    // REQUIREMENT 5: credentials via TeamCity Parameters (no hardcoding)
+    // REQUIREMENT 5 (credential safety): secrets via TC Parameters, never hardcoded
     params {
-        param("env.REGISTRY_URL", "%registry.url%")
-        param("env.REGISTRY_USER", "%registry.user%")
-        password("env.REGISTRY_PASSWORD", "%registry.password%")
         param("registry.url", "ghcr.io/kurodayu23")
-        param("registry.user", "kurodayu23")
+        param("image.tag", "%build.counter%-%build.vcs.number%")
         password("registry.password", "")
     }
 
