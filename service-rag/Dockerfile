@@ -14,7 +14,7 @@ RUN poetry config virtualenvs.create false \
 FROM python:3.11-slim
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY shared/ ./shared/
+COPY shared/shared/ ./shared/
 COPY service-rag/app/ ./app/
 EXPOSE 8001
 ENV OLLAMA_MODEL=llama3
