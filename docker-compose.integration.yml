@@ -11,8 +11,8 @@ networks:
 services:
   service-api:
     build:
-      context: ./service-api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: service-api/Dockerfile
     ports:
       - "8000:8000"
     networks: [ rag-net ]
@@ -24,8 +24,8 @@ services:
 
   service-rag:
     build:
-      context: ./service-rag
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: service-rag/Dockerfile
     ports:
       - "8001:8001"
     networks: [ rag-net ]
