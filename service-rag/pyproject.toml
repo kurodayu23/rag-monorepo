@@ -10,7 +10,7 @@ rag-shared = {path = "../shared", develop = true}
 ollama = "^0.1.8"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.0"
+pytest = ">=8.2.0"
 pytest-mock = "^3.14.0"
 pytest-cov = "^5.0.0"
 
