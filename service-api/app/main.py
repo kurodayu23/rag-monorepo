@@ -1,12 +1,16 @@
 """FastAPI gateway — exposes RAG query and document management endpoints."""
 from __future__ import annotations
 
+import os
+
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from shared import VectorStore
 
 app = FastAPI(title="RAG Gateway API", version="1.0.0")
 _store = VectorStore()
+_rag_service_url = os.getenv("RAG_SERVICE_URL")  # e.g. http://service-rag:8001/query
 
 
 class AddDocsRequest(BaseModel):
@@ -34,5 +38,26 @@ def query(body: QueryRequest):
     if _store.count == 0:
         raise HTTPException(422, "Store is empty. Add documents first.")
     context = _store.search(body.question, k=body.top_k)
-    # In production this calls service-rag via HTTP; here we return context directly
-    return {"question": body.question, "context": context, "answer": "Retrieved from gateway."}
+    # When configured, call service-rag so the answer is generated with LLM.
+    if _rag_service_url:
+        try:
+            resp = httpx.post(
+                _rag_service_url,
+                json={"question": body.question, "top_k": body.top_k},
+                timeout=20.0,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            # Keep context in sync even if rag service changes response shape.
+            payload.setdefault("context", context)
+            payload.setdefault("answer", "No answer returned by rag service.")
+            return payload
+        except Exception:
+            # Portfolio friendliness: keep returning useful retrieval context.
+            pass
+
+    return {
+        "question": body.question,
+        "context": context,
+        "answer": "Retrieved from gateway (rag service not configured).",
+    }

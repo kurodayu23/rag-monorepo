@@ -10,14 +10,11 @@ import jetbrains.buildServer.configs.kotlin.vcs.GitVcsRoot
 
 /*
  * RAG Monorepo — TeamCity Kotlin DSL
- * All 7 strict requirements implemented:
- *   1. 100% Kotlin DSL (this file)
- *   2. Poetry environment per service
- *   3. Smart VCS path-based triggering
- *   4. Shared lib changes cascade to all dependent services
- *   5. Parallel execution via snapshot dependencies
- *   6. Forced teardown (ExecutionMode.ALWAYS)
- *   7. Multi-arch Docker push with semver-SHA tag
+ * Pipeline examples for:
+ * - unit tests for shared library
+ * - unit tests for services
+ * - docker-based integration tests
+ * - docker build/push for service images
  */
 
 version = "2025.11"

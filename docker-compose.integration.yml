@@ -16,6 +16,8 @@ services:
     ports:
       - "8000:8000"
     networks: [ rag-net ]
+    environment:
+      - RAG_SERVICE_URL=http://service-rag:8001/query
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 5s

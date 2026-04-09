@@ -1,0 +1,14 @@
+{
+  "mj_version": "v6.0",
+  "templates": {
+    "cinematic_portrait": "Cinematic lighting, 35mm lens, 8k resolution, photorealistic portrait of {subject}, highly detailed --ar 16:9 --style raw --v 6.0",
+    "concept_art": "Concept art for a sci-fi video game, {subject}, trending on ArtStation, vivid colors, epic composition --ar 2:1 --c 20 --v 6.0"
+  },
+  "parameter_dictionary": {
+    "--c": "Chaos (0-100) - determines variation grid diversity",
+    "--s": "Stylize (0-1000) - determines how strongly Midjourney's default aesthetic is applied",
+    "--w": "Weird (0-3000) - introduces highly experimental and unusual aesthetics",
+    "--seed": "Injecting fixed seed for character consistency across iterative renders."
+  }
+}
+

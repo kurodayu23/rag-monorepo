@@ -10,7 +10,13 @@ class SimpleEmbedder:
     DIM: int = 64
 
     def encode(self, text: str) -> np.ndarray:
-        rng = np.random.default_rng(abs(hash(text)) % (2**31))
+        # Python's built-in `hash()` is salted per-process, so vectors change across runs.
+        # Use a stable hash (SHA256) to keep retrieval deterministic between processes/CI runs.
+        import hashlib
+
+        digest = hashlib.sha256(text.encode("utf-8")).digest()
+        seed = int.from_bytes(digest[:8], byteorder="big", signed=False) % (2**31)
+        rng = np.random.default_rng(seed)
         vec = rng.random(self.DIM).astype(np.float32)
         norm = np.linalg.norm(vec)
         return vec / (norm + 1e-9)

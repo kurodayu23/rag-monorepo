@@ -8,7 +8,7 @@ COPY shared/ /shared/
 # Copy service dependencies
 COPY service-rag/pyproject.toml service-rag/poetry.lock* ./
 RUN poetry config virtualenvs.create false \
-    && pip install faiss-cpu numpy ollama --quiet
+    && pip install faiss-cpu numpy ollama fastapi "uvicorn[standard]" --quiet
 
 # Stage 2: runtime
 FROM python:3.11-slim
@@ -18,4 +18,4 @@ COPY shared/shared/ ./shared/
 COPY service-rag/app/ ./app/
 EXPOSE 8001
 ENV OLLAMA_MODEL=llama3
-CMD ["python", "-m", "app.main"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
