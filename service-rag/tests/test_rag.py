@@ -40,3 +40,15 @@ def test_top_k_limits_context(mocker):
 def test_store_preloaded():
     """Shared vector store has pre-loaded documents."""
     assert _store.count >= 5
+
+
+def test_langchain_engine_selected(monkeypatch, mocker):
+    monkeypatch.setenv("RAG_ENGINE", "langchain")
+    from importlib import reload
+    import app.main as rag_main
+
+    reload(rag_main)
+    mocker.patch("app.langchain_engine.query_with_langchain", return_value="from-lc")
+    response = rag_main.query("What is FAISS?", top_k=1)
+    assert response["engine"] == "langchain"
+    assert response["answer"] == "from-lc"

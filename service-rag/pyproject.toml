@@ -8,6 +8,12 @@ authors = ["kurodayu23"]
 python = "^3.11"
 rag-shared = {path = "../shared", develop = true}
 ollama = "^0.1.8"
+langchain = {version = "^0.3.0", optional = true}
+langchain-core = {version = "^0.3.0", optional = true}
+langchain-community = {version = "^0.3.0", optional = true}
+
+[tool.poetry.extras]
+langchain_engine = ["langchain", "langchain-core", "langchain-community"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.2.0"

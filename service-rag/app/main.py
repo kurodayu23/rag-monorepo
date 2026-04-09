@@ -1,12 +1,13 @@
-"""RAG query service — uses shared FAISS store + Ollama."""
+"""RAG query service — supports native Ollama and optional LangChain engine."""
 from __future__ import annotations
 
 import os
 import ollama
-from shared import VectorStore, SimpleEmbedder
+from shared import VectorStore
+
+from app.langchain_engine import query_with_langchain
 
 _store = VectorStore()
-_embedder = SimpleEmbedder()
 
 # Pre-load sample knowledge base
 _store.add([
@@ -18,6 +19,7 @@ _store.add([
 ])
 
 _MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+_ENGINE = os.getenv("RAG_ENGINE", "native").lower()  # native | langchain
 
 
 def query(question: str, top_k: int = 3) -> dict:
@@ -25,6 +27,15 @@ def query(question: str, top_k: int = 3) -> dict:
     context = _store.search(question, k=top_k)
     if not context:
         return {"question": question, "context": [], "answer": "No context available."}
+
+    if _ENGINE == "langchain":
+        answer = query_with_langchain(question=question, context=context, model_name=_MODEL)
+        return {
+            "question": question,
+            "context": context,
+            "answer": answer,
+            "engine": "langchain",
+        }
 
     prompt = (
         "Answer based only on the context below.\n\n"
@@ -36,4 +47,5 @@ def query(question: str, top_k: int = 3) -> dict:
         "question": question,
         "context": context,
         "answer": response["message"]["content"],
+        "engine": "native",
     }
