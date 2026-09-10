@@ -1,7 +1,4 @@
-"""
-Production-grade text embedder leveraging HuggingFace Transformers.
-Replaces the legacy hash-based mock embedder with real state-of-the-art NLP representations.
-"""
+"""使用本地 Transformer 模型生成归一化文本向量。"""
 from __future__ import annotations
 
 import logging
@@ -10,17 +7,15 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 class TransformersEmbedder:
-    """
-    Advanced text embedder using local HuggingFace Transformer models.
-    Supports mean pooling, attention masking, and fp16 GPU acceleration.
-    """
+    """MiniLM 默认输出 384 维向量，模型在首次编码时加载。"""
+
+    DIM = 384
 
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", device: str = "cpu"):
         self.model_name = model_name
         self.device = device
         self._tokenizer = None
         self._model = None
-        self.DIM = 384  # Default for MiniLM-L6-v2
 
     def _lazy_load(self):
         if self._model is None:
@@ -35,6 +30,7 @@ class TransformersEmbedder:
             self._model = AutoModel.from_pretrained(self.model_name)
             self._model.to(self.device)
             self._model.eval()
+            self.DIM = self._model.config.hidden_size
 
     def _mean_pooling(self, model_output, attention_mask):
         """Perform average pooling of token embeddings using the attention mask."""
@@ -50,6 +46,8 @@ class TransformersEmbedder:
         return self.encode_batch([text])[0]
 
     def encode_batch(self, texts: list[str]) -> np.ndarray:
+        if not texts:
+            return np.empty((0, self.DIM), dtype=np.float32)
         self._lazy_load()
         import torch
         
@@ -74,6 +72,6 @@ class TransformersEmbedder:
         
         return sentence_embeddings.cpu().numpy().astype(np.float32)
 
-class EmbedderProxy(TransformersEmbedder):
-    """Alias for backwards compatibility with legacy service signatures."""
-    pass
+# 保留原有公开导入名称，统一使用同一个实现。
+SimpleEmbedder = TransformersEmbedder
+EmbedderProxy = TransformersEmbedder

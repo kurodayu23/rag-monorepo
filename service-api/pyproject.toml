@@ -3,10 +3,12 @@ name = "service-api"
 version = "1.0.0"
 description = "FastAPI gateway microservice"
 authors = ["kurodayu23"]
+packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11,<3.13"
 rag-shared = {path = "../shared", develop = true}
+torch = {version = "2.5.1+cpu", source = "pytorch-cpu"}
 fastapi = "^0.111.0"
 uvicorn = {version = "^0.29.0", extras = ["standard"]}
 httpx = "^0.27.0"
@@ -23,3 +25,8 @@ pythonpath = ["..", "."]
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"

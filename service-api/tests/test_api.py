@@ -51,3 +51,27 @@ def test_health_reflects_doc_count(client):
     client.post("/documents", json={"documents": ["a", "b", "c"]})
     r = client.get("/health")
     assert r.json()["docs_indexed"] == 3
+
+
+def test_gateway_forwards_uploaded_context(client, monkeypatch, mocker):
+    import app.main as gateway
+    monkeypatch.setattr(gateway, "_rag_service_url", "http://rag/query")
+    client.post("/documents", json={"documents": ["The project codename is Nimbus-731."]})
+    response = mocker.Mock()
+    response.json.return_value = {"answer": "Nimbus-731", "context": ["wrong store"]}
+    post = mocker.patch("app.main.httpx.post", return_value=response)
+    result = client.post("/query", json={"question": "What is the project codename?"})
+    expected = ["The project codename is Nimbus-731."]
+    assert post.call_args.kwargs["json"]["context"] == expected
+    assert result.json()["context"] == expected
+
+
+def test_gateway_reports_generation_failure(client, monkeypatch, mocker):
+    import app.main as gateway
+    import httpx
+    monkeypatch.setattr(gateway, "_rag_service_url", "http://rag/query")
+    client.post("/documents", json={"documents": ["local document"]})
+    mocker.patch("app.main.httpx.post", side_effect=httpx.ConnectError("offline"))
+    result = client.post("/query", json={"question": "document"}).json()
+    assert result["generation_status"] == "unavailable"
+    assert result["context"] == ["local document"]
