@@ -21,6 +21,8 @@ class VectorStore:
         self._docs.extend(docs)
 
     def search(self, query: str, k: int = 3) -> list[str]:
+        if k < 1:
+            raise ValueError("k must be positive")
         if self._index.ntotal == 0:
             return []
         vec = self._emb.encode(query).reshape(1, -1)

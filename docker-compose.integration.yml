@@ -1,9 +1,3 @@
-version: "3.9"
-
-# ── Integration test environment ──────────────────────────────────────────────
-# Used by IntegrationTest build config.
-# docker-compose down --volumes --remove-orphans (ALWAYS step) destroys everything.
-
 networks:
   rag-net:
     driver: bridge
@@ -22,7 +16,7 @@ services:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
       interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 60
 
   service-rag:
     build:
@@ -33,3 +27,8 @@ services:
     networks: [ rag-net ]
     environment:
       - OLLAMA_MODEL=llama3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 60

@@ -30,6 +30,7 @@ app = FastAPI(title="service-rag", version="1.0.0")
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
     top_k: int = Field(3, ge=1, le=10)
+    context: list[str] | None = None
 
 
 @app.get("/health")
@@ -37,9 +38,10 @@ def health() -> dict:
     return {"status": "ok", "docs_indexed": _store.count}
 
 
-def query(question: str, top_k: int = 3) -> dict:
+def query(question: str, top_k: int = 3, context: list[str] | None = None) -> dict:
     """Retrieve context and generate an answer."""
-    context = _store.search(question, k=top_k)
+    if context is None:
+        context = _store.search(question, k=top_k)
     if not context:
         return {"question": question, "context": [], "answer": "No context available."}
 
@@ -61,7 +63,6 @@ def query(question: str, top_k: int = 3) -> dict:
         response = ollama.chat(model=_MODEL, messages=[{"role": "user", "content": prompt}])
         answer = response["message"]["content"]
     except Exception as e:
-        # CI / portfolio demo friendliness:
         # If Ollama isn't reachable, keep the service usable by returning a context-backed fallback.
         answer = f"Ollama unavailable ({type(e).__name__}). Returning retrieved context only."
     return {
@@ -74,7 +75,7 @@ def query(question: str, top_k: int = 3) -> dict:
 
 @app.post("/query")
 def query_endpoint(body: QueryRequest) -> dict:
-    return query(question=body.question, top_k=body.top_k)
+    return query(question=body.question, top_k=body.top_k, context=body.context)
 
 
 if __name__ == "__main__":

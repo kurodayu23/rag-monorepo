@@ -6,9 +6,11 @@ authors = ["kurodayu23"]
 packages = [{include = "shared"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
-faiss-cpu = "^1.7.4"
+python = ">=3.11,<3.13"
+faiss-cpu = "1.8.0.post1"
 numpy = "^1.26.0"
+transformers = "4.46.3"
+torch = {version = "2.5.1+cpu", source = "pytorch-cpu"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.2.0"
@@ -21,3 +23,8 @@ pythonpath = ["."]
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"

@@ -1,21 +1,10 @@
-# Build from monorepo root: docker build -f service-rag/Dockerfile .
-# Stage 1: builder
-FROM python:3.11-slim AS builder
-WORKDIR /build
-RUN pip install poetry==1.8.3 --quiet
-# Copy shared library
-COPY shared/ /shared/
-# Copy service dependencies
-COPY service-rag/pyproject.toml service-rag/poetry.lock* ./
-RUN poetry config virtualenvs.create false \
-    && pip install faiss-cpu numpy ollama fastapi "uvicorn[standard]" --quiet
-
-# Stage 2: runtime
+# 从仓库根目录构建。
 FROM python:3.11-slim
-WORKDIR /app
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY shared/shared/ ./shared/
-COPY service-rag/app/ ./app/
+RUN pip install --no-cache-dir poetry==1.8.3
+WORKDIR /workspace
+COPY shared/ ./shared/
+COPY service-rag/ ./service-rag/
+WORKDIR /workspace/service-rag
+RUN poetry config virtualenvs.create false && poetry install --only main --extras langchain_engine --no-interaction
 EXPOSE 8001
-ENV OLLAMA_MODEL=llama3
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -52,3 +52,12 @@ class TestVectorStore:
         vs = VectorStore()
         vs.add([])
         assert vs.count == 0
+
+
+def test_empty_batch_has_stable_shape():
+    assert SimpleEmbedder().encode_batch([]).shape == (0, 384)
+
+
+def test_zero_top_k_is_rejected():
+    with pytest.raises(ValueError, match="positive"):
+        VectorStore().search("query", k=0)

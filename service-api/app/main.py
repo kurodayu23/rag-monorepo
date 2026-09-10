@@ -43,18 +43,23 @@ def query(body: QueryRequest):
         try:
             resp = httpx.post(
                 _rag_service_url,
-                json={"question": body.question, "top_k": body.top_k},
+                json={"question": body.question, "top_k": body.top_k, "context": context},
                 timeout=20.0,
             )
             resp.raise_for_status()
             payload = resp.json()
             # Keep context in sync even if rag service changes response shape.
-            payload.setdefault("context", context)
+            payload["context"] = context
             payload.setdefault("answer", "No answer returned by rag service.")
             return payload
-        except Exception:
-            # Portfolio friendliness: keep returning useful retrieval context.
-            pass
+        except (httpx.HTTPError, ValueError) as exc:
+            return {
+                "question": body.question,
+                "context": context,
+                "answer": "Generation service unavailable; returning retrieved context only.",
+                "generation_status": "unavailable",
+                "error_type": type(exc).__name__,
+            }
 
     return {
         "question": body.question,

@@ -1,64 +1,67 @@
-[English](README.md) | [简体中文](README_zh.md)
+# RAG Monorepo
 
----
+使用 FastAPI、MiniLM、FAISS 和 Ollama 构建的检索增强问答示例，包含共享向量库、API 网关、生成服务、测试和容器配置。
 
-# 🚀 RAG Monorepo: Enterprise-Grade Retrieval Augmented Generation
+## 数据如何流动
 
-> **An engineering-focused, destructible, testable, and CI-ready RAG microservice architecture.**
+`POST /documents` 把文档写入网关的内存向量库；`POST /query` 检索 top-k 文档，并将同一份上下文传给生成服务。生成服务使用 Ollama 回答，可通过 `RAG_ENGINE=langchain` 选择 LCEL 条件拒答管线。
 
-This repository is **NOT** a "single-file toy demo" often seen in AI tutorials. It demonstrates production-level MLOps capabilities by orchestrating robust NLP embedding techniques alongside advanced LCEL routing graphs.
+- `shared/shared/embedder.py`：MiniLM 编码、attention mask 平均池化和向量归一化。保留 `SimpleEmbedder` 旧导入名，实际使用 Transformer。
+- `shared/shared/vector_store.py`：FAISS L2 索引与文档映射。
+- `service-api/app/main.py`：文档入口、检索和生成服务调用。
+- `service-rag/app/main.py`：生成入口，直接调用时可使用内置示例文档。
+- `service-rag/app/langchain_engine.py`：判断上下文是否充分，再回答或拒答。
 
-## 🎯 Core Capabilities Demonstrated
+## 运行
 
-### 1. 🧠 HuggingFace Transformers Integeration
-We moved away from naive text splitting/hashing and implemented a real representation pipeline.
-- Uses `sentence-transformers/all-MiniLM-L6-v2` locally via HuggingFace `transformers`.
-- Implements direct **tensor mathematical manipulation**: custom mean pooling and attention mask expansion in PyTorch.
-- Evaluates GPU inference and CPU fallback.
+主要运行与 CI 验证环境为 Linux / Docker，使用 Python 3.11/3.12 和 Poetry 1.8.3。锁文件使用 CPU 版 PyTorch。第一次编码需要联网下载 `sentence-transformers/all-MiniLM-L6-v2`，后续使用本地缓存。
 
-### 2. ⛓️ LangChain LCEL Routing & Anti-Hallucination
-The `service-rag` module does not just perform a basic `prompt | llm` operation.
-- Implements a programmatic **LCEL (LangChain Expression Language)** computational graph.
-- **Conditional Routing (`RunnableBranch`)**: Prior to generating an answer, an evaluation chain verifies if the retrieved chunks contain the required facts.
-- **Graceful Degradation**: If the context is missing info, the router surgically aborts generation to guarantee a **0% hallucination rate** instead of returning garbage.
+在各子目录分别安装依赖：
 
-### 3. ☸️ Microservice CI/CD & Monorepo Tooling
-- API Gateway (`service-api`), Backend logic (`service-rag`), and core AI packages (`shared`) are structurally separated via Poetry.
-- Fully wired for Kotlin DSL integration testing (e.g. Jenkins / TeamCity).
-- Containerized for rapid spin-up via Docker Compose.
-
----
-
-## 📂 Architecture Layout
-
-```text
-rag-monorepo/
-├── shared/                     # AI Core
-│   ├── shared/embedder.py      # HuggingFace Transformer Pooling
-│   └── shared/vector_store.py  # Local FAISS Indexing
-├── service-api/                # Edge API 
-│   └── app/main.py             # FastAPI async routes
-├── service-rag/                # Domain Logic
-│   └── app/langchain_engine.py # Advanced LCEL graph & Hallucination Guard
-└── integration_tests/          # E2E Test Suite
+```bash
+cd shared
+poetry install
+cd ../service-rag
+poetry install --all-extras
+poetry run uvicorn app.main:app --port 8001
 ```
 
-## 🛠️ Bootstrapping
+另一个终端启动网关（以下环境变量语法适用于 Bash）：
 
-Ensure you have Docker and Poetry installed.
+```bash
+cd service-api
+poetry install
+RAG_SERVICE_URL=http://localhost:8001/query poetry run uvicorn app.main:app --port 8000
+```
 
-1. **Spin up the ecosystem**
-   ```bash
-   docker-compose -f docker-compose.integration.yml up -d
-   ```
+PowerShell 中先执行 `$env:RAG_SERVICE_URL='http://localhost:8001/query'`，再运行相同的 `poetry run uvicorn` 命令。
 
-2. **Trigger advanced LCEL answering pipeline** (Assuming documents indexed)
-   ```bash
-   curl -X POST http://localhost:8000/ask \
-     -H "Content-Type: application/json" \
-     -d '{"question": "How do I optimize CUDA allocations?", "rag_engine": "langchain"}'
-   ```
+如需真实生成，先启动本地 Ollama 并准备 `llama3`，或通过生成服务的 `OLLAMA_MODEL` 指定已安装模型。未启动 Ollama 时接口会明确返回仅检索结果，不代表生成成功。
 
-## 🧠 Why This Matters
+```bash
+curl -X POST http://localhost:8000/documents -H 'Content-Type: application/json' -d '{"documents":["The project codename is Nimbus-731."]}'
+curl -X POST http://localhost:8000/query -H 'Content-Type: application/json' -d '{"question":"What is the project codename?","top_k":1}'
+```
 
-Anybody can write `import langchain`. True AI engineering requires understanding the internals: *tokenization limits, attention masking, precision degradations (fp16), and vector similarity spaces (L2 Norms).* This workspace acts as a pristine baseline to evaluate large-scale backend decisions before cloud deployment.
+Windows PowerShell 请使用 `curl.exe` 或 `Invoke-RestMethod`，避免旧版 PowerShell 的 `curl` 别名差异。
+
+## 容器与验证
+
+```bash
+docker compose -f docker-compose.integration.yml up -d --build --wait --wait-timeout 300
+python -m pip install pytest httpx
+python -m pytest integration_tests -q
+docker compose -f docker-compose.integration.yml down
+```
+
+这个 Compose 配置验证检索和服务通信，不包含 Ollama 容器。真实生成需要另外配置可访问的 Ollama 服务。
+
+分别在 `shared`、`service-api`、`service-rag` 中执行 `poetry run pytest -q`。生成调用在单元测试中替换为测试响应；嵌入与向量检索使用真实 MiniLM 模型。GitHub Actions 检查三个子项目及 Docker 集成流程。`.teamcity` 是另一套配置示例，其部署状态不能由 GitHub Actions 结果证明。
+
+## 当前边界
+
+这是工程演示项目，不是已部署的企业平台。向量库驻留内存，重启丢失，尚未提供认证、租户隔离、持久化及并发写入保护。LCEL 的上下文判断仍由模型完成，不能保证“零幻觉”。现有测试验证行为，不等于检索质量基准或真实模型回答质量评测。
+
+`portfolio/` 保留历史实验，不属于主服务的启动与验收范围。
+
+Windows 原生环境中，当前 FAISS/PyTorch wheel 组合会出现 OpenMP 运行库冲突并终止进程。请使用 Linux 容器或 WSL2；本项目不设置 `KMP_DUPLICATE_LIB_OK` 来绕过冲突。
