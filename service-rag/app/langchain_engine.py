@@ -1,6 +1,7 @@
 """根据检索上下文选择回答或拒答的 LCEL 管线。"""
 from __future__ import annotations
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,8 @@ def query_with_langchain(question: str, context: list[str], model_name: str) -> 
             "LangChain dependencies missing. Run: pip install langchain-core langchain-community"
         ) from exc
 
-    llm = ChatOllama(model=model_name, temperature=0.1)
+    llm = ChatOllama(model=model_name, temperature=0.1,
+                     base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
 
     eval_prompt = ChatPromptTemplate.from_template(
         """Determine if the provided context contains sufficient information to answer the question.

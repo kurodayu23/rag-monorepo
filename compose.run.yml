@@ -1,0 +1,29 @@
+name: rag-portfolio
+services:
+  service-api:
+    build:
+      context: .
+      dockerfile: service-api/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      RAG_SERVICE_URL: http://service-rag:8001/query
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  service-rag:
+    build:
+      context: .
+      dockerfile: service-rag/Dockerfile
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 60

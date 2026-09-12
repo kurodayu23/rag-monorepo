@@ -7,6 +7,12 @@ import pytest
 BASE = "http://localhost:8000"
 
 
+def test_browser_api_page():
+    response = httpx.get(f"{BASE}/docs")
+    assert response.status_code == 200
+    assert "swagger-ui" in response.text
+
+
 def test_health():
     r = httpx.get(f"{BASE}/health")
     assert r.status_code == 200

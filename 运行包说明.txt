@@ -1,0 +1,17 @@
+RAG Docker 运行包
+
+要求：Windows 10/11、已安装并启动 Docker Desktop（Linux containers），首次运行可访问外网。
+不需要在 Windows 中安装 Python。首次构建下载 CPU PyTorch、依赖与 MiniLM 模型，可能需要数分钟和数 GB 磁盘空间。
+
+1. 解压整个目录到本地。
+2. 双击 启动RAG.cmd，等待构建及健康检查，浏览器会打开 http://localhost:8000/docs。
+3. 展开 POST /documents -> Try it out，提交 {"documents":["The project codename is Nimbus-731."]}。
+4. 展开 POST /query，提交 {"question":"What is the project codename?","top_k":1}。
+5. 双击 停止RAG.cmd 停止本项目容器。停止或重启后请重新添加文档，索引不持久化。
+
+默认可以验证真实向量检索；完整回答还需要宿主机运行 Ollama 并准备 llama3（可用 OLLAMA_MODEL 环境变量改成已有模型）。
+容器通过 host.docker.internal:11434 连接本机 Ollama。若无法连接，检查 Ollama 监听地址和本机网络策略；接口会明确提示只返回检索结果。
+本包不含大模型权重，不自动安装 Ollama，也不宣称离线完整问答。接口页面使用 FastAPI Swagger UI。
+程序只绑定本机 127.0.0.1:8000；没有账户体系，不应用作公网服务。
+
+源码：https://github.com/kurodayu23/rag-monorepo

@@ -1,5 +1,7 @@
 # RAG Monorepo
 
+**[下载 Docker 运行包](https://github.com/kurodayu23/rag-monorepo/releases/latest)**：下载 `RAG-Monorepo-v1.0.0-Docker.zip`，完整解压后双击 `启动RAG.cmd`。需先安装并启动 Docker Desktop；首次构建联网下载依赖和模型。停止时双击 `停止RAG.cmd`。使用方法见 `运行包说明.txt`。
+
 使用 FastAPI、MiniLM、FAISS 和 Ollama 构建的检索增强问答示例，包含共享向量库、API 网关、生成服务、测试和容器配置。
 
 ## Vibe Coding / AI 辅助开发
