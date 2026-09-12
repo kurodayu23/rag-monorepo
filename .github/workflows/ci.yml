@@ -40,12 +40,12 @@ jobs:
       - name: Install test deps
         run: pip install pytest httpx
       - name: Start services
-        run: docker compose -f docker-compose.integration.yml up -d --build --wait --wait-timeout 300
+        run: docker compose -p rag-portfolio -f compose.run.yml up -d --build --wait --wait-timeout 300
       - name: Run integration tests
         run: pytest integration_tests -q
       - name: Show service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.integration.yml logs --no-color --tail 100
+        run: docker compose -p rag-portfolio -f compose.run.yml logs --no-color --tail 100
       - name: Teardown
         if: always()
-        run: docker compose -f docker-compose.integration.yml down -v
+        run: docker compose -p rag-portfolio -f compose.run.yml down -v
